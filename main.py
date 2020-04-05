@@ -217,26 +217,26 @@ class Room(RoomTile):
 		for lx in range(0,15):
 			for ly in range(0, 15):
 				floor = Floor("floor", 15*x+lx, 15*y+ly)
-				floorList.append(floor)
+				structures.append(floor)
 
 # Generates a thin hallway between two or more rooms
 class Hallway(RoomTile):
 	def generateInWorld(self, x, y):
 		for ly in range(0,6):
 			floor = Floor("floor", 15*x+6, 15*y+ly)
-			floorList.append(floor)
+			structures.append(floor)
 			floor = Floor("floor", 15*x+7, 15*y+ly)
-			floorList.append(floor)
+			structures.append(floor)
 		for ly in range(8,15):
 			floor = Floor("floor", 15*x+6, 15*y+ly)
-			floorList.append(floor)
+			structures.append(floor)
 			floor = Floor("floor", 15*x+7, 15*y+ly)
-			floorList.append(floor)
+			structures.append(floor)
 		for lx in range(0,15):
 			floor = Floor("floor", 15*x+lx, 15*y+6)
-			floorList.append(floor)
+			structures.append(floor)
 			floor = Floor("floor", 15*x+lx, 15*y+7)
-			floorList.append(floor)
+			structures.append(floor)
 	
 # Generate the world! You can use this to generate levels or whatever
 WG_EMPTY = 0
@@ -255,12 +255,12 @@ def worldgen(roomSetup):
 		for y in range(0,9):
 			map[x].append(WG_EMPTY)	
 			roommap[x].append(None)
-	x = random.randrange(0, 15)
-	y = random.randrange(0, 9)
-	while len(rooms) > 0:
+	x = 0#random.randrange(0, 15)
+	y = 0#random.randrange(0, 9)
+	while len(rooms) > 1:
 		map[x][y] = WG_ROOM
 		roommap[x][y] = rooms.pop(random.randrange(0,len(rooms)))
-		n = random.randrange(1,random.randrange(4,6))
+		n = random.randrange(2,random.randrange(4,6))
 		direction = 0
 		not_this_way = 0
 		while n > 0:
@@ -302,8 +302,10 @@ def worldgen(roomSetup):
 					y = y - 1
 				if map[x][y] & WG_VERTHALL == 0:
 					map[x][y] = map[x][y] + WG_VERTHALL	
-			if roommap[x][y] != None or n > 1:
+			if roommap[x][y] == None or n > 1:
 				n = n - 1
+	map[x][y] = WG_ROOM
+	roommap[x][y] = rooms.pop(random.randrange(0,len(rooms)))
 	for x in range(0,15):
 		for y in range(0,9):
 			mxy = map[x][y]
@@ -315,17 +317,17 @@ def worldgen(roomSetup):
 			mxyr = False
 			if mxy & WG_VERTHALL != 0:
 				if y > 0:
-					if mxy[x][y-1] != 0:
+					if map[x][y-1] != 0:
 						mxyd = True
 				if y < 8:
-					if mxy[x][y+1] != 0:
+					if map[x][y+1] != 0:
 						mxyu = True
 			elif mxy & WG_HORIZHALL != 0:
 				if x > 0:
-					if mxy[x-1][y] != 0:
+					if map[x-1][y] != 0:
 						mxyl = True
 				if x < 14:
-					if mxy[x+1][y] != 0:
+					if map[x+1][y] != 0:
 						mxyr = True
 			if mxy & WG_ROOM != 0:
 				roomobj = Room(mxyu,mxyd,mxyl,mxyr)
