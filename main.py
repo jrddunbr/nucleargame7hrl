@@ -208,12 +208,12 @@ class RoomTile():
 		connectBottom = cb
 
 	# x and y are the room tile location, not the render tile. Room tiles are 15x15 the image tiles
-	def generateInWorld(x, y):
+	def generateInWorld(self, x, y):
 		pass
 
 # Generates a room
 class Room(RoomTile):
-	def generateInWorld(x, y):
+	def generateInWorld(self, x, y):
 		for lx in range(0,15):
 			for ly in range(0, 15):
 				floor = Floor("floor", 15*x+lx, 15*y+ly)
@@ -221,7 +221,7 @@ class Room(RoomTile):
 
 # Generates a thin hallway between two or more rooms
 class Hallway(RoomTile):
-	def generateInWorld(x, y):
+	def generateInWorld(self, x, y):
 		for ly in range(0,6):
 			floor = Floor("floor", 15*x+6, 15*y+ly)
 			floorList.append(floor)
@@ -245,25 +245,27 @@ WG_HORIZHALL = 2
 WG_HALL = 3
 WG_ROOM = 4
 def worldgen(roomSetup):
+	rooms = roomSetup
+	#rooms += [item for sublist in [[x[0] for y in range(x[1])] for x in roomSetup] for item in sublist]
 	map = []
 	roommap = []
 	for x in range(0,15):
-		map[x] = []
-		roommap[x] = []
+		map.append([])
+		roommap.append([])
 		for y in range(0,9):
-			map[x][y] = WG_EMPTY;	
-			roommap = None
+			map[x].append(WG_EMPTY)	
+			roommap[x].append(None)
 	x = random.randrange(0, 15)
 	y = random.randrange(0, 9)
-	while rooms.count() > 0:
+	while len(rooms) > 0:
 		map[x][y] = WG_ROOM
-		roommap[x][y] = rooms.pop(random.randrange(0,rooms.count()))
-		n = rand(1,randrange(4,6))
+		roommap[x][y] = rooms.pop(random.randrange(0,len(rooms)))
+		n = random.randrange(1,random.randrange(4,6))
 		direction = 0
 		not_this_way = 0
 		while n > 0:
 			while direction == not_this_way:
-				direction = randrange(1,4)
+				direction = random.randrange(1,4)
 			if direction == 1: # Left
 				if x > 0:
 					not_this_way = 3
@@ -366,7 +368,7 @@ def draw():
 # This is where the game setup logic is
 def run():
 	setup()
-	worldgen({0,0,0,0,0})
+	worldgen([0,0,0,0,0])
 	pyxel.run(update, draw)
 
 # This is the entry point for our file.
