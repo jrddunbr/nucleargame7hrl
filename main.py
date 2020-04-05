@@ -15,17 +15,20 @@ HEIGHT = 12
 GL_WIDTH = 155
 GL_HEIGHT = 135
 
-# Entities (should not) be able to walk through structures,
-#   unless they have "allow" set to True
-structures = []
-
 # Window offsets for the panning feature.
 windowOffsetX = 0
 windowOffsetY = 0
 
+# Entities (should not) be able to walk through structures,
+#   unless they have "allow" set to True
+structures = []
+
 # Entities can move all over the place and stand in the same cube, but not walk
 #   into structures unless the structure has "allow" set to True
 entities = []
+
+# These contain all fireables and are cleared relatively often.
+lazers = []
 
 # Sound mappings
 sounds = {}
@@ -125,6 +128,22 @@ class Entity():
         drawY = self.y + windowOffsetY
         if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
             texture16[self.texName[self.frameNum]].draw(drawX, drawY)
+
+class Lazer():
+    def __init__(self, owner, x, y, dir):
+        self.owner = owner
+        self.x = x
+        self.y = y
+        self.dir = dir
+
+    def draw(self):
+        drawX = (self.x + windowOffsetX)*2
+        drawY = (self.y + windowOffsetY)*2
+        if (drawX >= 0 and drawX < WIDTH*2) and (drawY >=0 and drawY < HEIGHT*2):
+            if (self.dir == "N" or self.dir == "S"):
+                texture8["player/beem_V{}".format(random.randrange(0,3))].draw(drawX + 0.5, drawY + 0.5, 0)
+            else:
+                texture8["player/beem_H{}".format(random.randrange(0,3))].draw(drawX + 0.5, drawY + 0.5, 0)
 
 class Wall(Entity):
     def __init__(self, name, x=WIDTH/2, y=HEIGHT/2, dir="N"):
@@ -236,10 +255,21 @@ class StationaryTurret(Entity):
         self.dir = dir
         self.charge = 0
         self.chargeTexNames = []
+        self.HbeamNames = []
+        self.VbeamNames = []
+        self.owner = random.randrange(0,32000) # good enough
 
         for tex in ["player/turret_charge_{}.png".format(x) for x in range(0,4)]:
             texName = tex.rsplit(".",1)[0] # remove file extension
             self.chargeTexNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_H{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.HbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_V{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.VbeamNames.append(texName)
             Drawn(texName, 8, tex)
 
     def update(self):
@@ -261,6 +291,35 @@ class StationaryTurret(Entity):
                 self.charge += 1
         if (self.charge == 3):
             sounds["bzzz"].play(2)
+            self.placeLazer(self.dir)
+
+    def placeLazer(self, direction="N"):
+        count = 0
+        if direction == "N" or direction == "S":
+            beamNames = self.HbeamNames
+            if direction == "N":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y - y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "N")
+                    lazers.append(lz)
+            if direction == "S":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y + y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "S")
+                    lazers.append(lz)
+
+        elif direction == "E" or direction == "W":
+            beamNames = self.VbeamNames
+            if direction == "E":
+                for x in range(0, WIDTH*4):
+                    xL = self.x - x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "E")
+                    lazers.append(lz)
+            if direction == "W":
+                for x in range(0, WIDTH*4):
+                    xL = self.x + x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "W")
+                    lazers.append(lz)
 
     def draw(self):
         drawX = self.x + windowOffsetX
@@ -302,14 +361,71 @@ class MovingTurret(Entity):
         self.dir = dir
         self.charge = 0
         self.chargeTexNames = []
+        self.HbeamNames = []
+        self.VbeamNames = []
+        self.owner = random.randrange(0,32000) # good enough
 
         for tex in ["player/turret_charge_{}.png".format(x) for x in range(0,4)]:
             texName = tex.rsplit(".",1)[0] # remove file extension
             self.chargeTexNames.append(texName)
             Drawn(texName, 8, tex)
+        for tex in ["player/beem_H{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.HbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_V{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.VbeamNames.append(texName)
+            Drawn(texName, 8, tex)
 
     def update(self):
-        pass
+        charge = 0
+        for entity in entities:
+            #print(entity)
+            if isinstance(entity, Player):
+                #print("{} is player!".format(entity))
+                xdiff = math.pow(entity.x - self.x, 2)
+                ydiff = math.pow(entity.y - self.y, 2)
+                if xdiff + ydiff < 10:
+                    #print("ARMING {} {}".format(self.x, self.y))
+                    charge += 0.5
+        if (charge == 0):
+            if (self.charge > 0):
+                self.charge -= 1
+        else:
+            if self.charge < 3:
+                self.charge += 1
+        if (self.charge == 3):
+            sounds["bzzz"].play(2)
+            self.placeLazer(self.dir)
+
+    def placeLazer(self, direction="N"):
+        count = 0
+        if direction == "N" or direction == "S":
+            beamNames = self.HbeamNames
+            if direction == "N":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y - y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "N")
+                    lazers.append(lz)
+            if direction == "S":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y + y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "S")
+                    lazers.append(lz)
+
+        elif direction == "E" or direction == "W":
+            beamNames = self.VbeamNames
+            if direction == "E":
+                for x in range(0, WIDTH*4):
+                    xL = self.x - x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "E")
+                    lazers.append(lz)
+            if direction == "W":
+                for x in range(0, WIDTH*4):
+                    xL = self.x + x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "W")
+                    lazers.append(lz)
 
     def draw(self):
         drawX = self.x + windowOffsetX
@@ -342,9 +458,7 @@ class MovingTurret(Entity):
         self.frameNum += 1
         if (self.frameNum >= 12):
             self.frameNum = 0
-        self.charge += 1
-        if (self.charge >= 3):
-            self.charge = 0
+        if (self.frameNum == 3):
             if self.dir == "N":
                 self.dir = "E"
             elif self.dir == "E":
@@ -585,6 +699,9 @@ def update():
     # for x in [x for x in entities if x is Player]
     # for x in [x for x in entities if x is not Player]
 
+    # Clear all lazers
+    lazers.clear()
+
     for x in structures:
         x.update()
     for x in entities:
@@ -596,6 +713,8 @@ def draw():
     # Clear the screen
     pyxel.cls(col=3)
     for x in structures:
+        x.draw()
+    for x in lazers:
         x.draw()
     for x in entities:
         x.draw()
