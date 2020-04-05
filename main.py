@@ -580,7 +580,7 @@ def mapObjType(type, ct, cb, cl, cr):
             return Floor
         if "R" in type and cr:
             return Floor
-        if "D" in type and cb:
+        if "L" in type and cb:
             return Floor
         return Wall
     return None
@@ -628,7 +628,6 @@ class Room(RoomTile):
 class Hallway(RoomTile):
     def generateInWorld(self, x, y):
         roomData = parseRoomCSV("hall.csv",self.ct,self.cb,self.cl,self.cr)
-
         for xL in range(0,15):
             for yL in range(0,15):
                 tile = roomData[xL][yL]
