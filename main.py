@@ -200,19 +200,37 @@ def setup():
     #random = Entity("random", "random.png")
     #entities.append(random)
 
+class RoomTile():
+    def __init__(self, connectTop=False, connectBottom=False, connectLeft=False, connectRight=False):
+        pass
+
+    # x and y are the room tile location, not the render tile. Room tiles are 15x15 the image tiles
+    def generateInWorld(x, y):
+        pass
+
+# Generates a room
+class Room(RoomTile):
+    pass
+
+# Generates a thin hallway between two or more rooms
+class Hallway(RoomTile):
+    pass
+	
 # Generate the world! You can use this to generate levels or whatever
 WG_EMPTY = 0
 WG_VERTHALL = 1
 WG_HORIZHALL = 2
+WG_HALL = 3
 WG_ROOM = 4
-def worldgen(rooms):
+def worldgen(roomSetup):
 	map = []
 	roommap = []
 	for x in range(0,15):
 		map[x] = []
 		roommap[x] = []
 		for y in range(0,9):
-			map[x][y] = WG_EMPTY;		
+			map[x][y] = WG_EMPTY;	
+			roommap = None
 	x = random.randrange(0, 15)
 	y = random.randrange(0, 9)
     while rooms.count() > 0:
@@ -264,7 +282,31 @@ def worldgen(rooms):
 				n = n - 1
 	for x in range(0,15):
 		for y in range(0,9):
-			
+			mxy = map[x][y]
+			if mxy == 0:
+				continue
+			mxyl = False
+			mxyu = False
+			mxyd = False
+			mxyr = False
+			if mxy & WG_VERTHALL != 0:
+				if y > 0:
+					if mxy[x][y-1] != 0:
+						mxyd = True
+				if y < 8:
+					if mxy[x][y+1] != 0:
+						mxyu = True
+			elif mxy & WG_HORIZHALL != 0:
+				if x > 0:
+					if mxy[x-1][y] != 0:
+						mxyl = True
+				if x < 14:
+					if mxy[x+1][y] != 0:
+						mxyr = True
+			if mxy & WG_ROOM != 0:
+				roomobj.generateInWorld(x,y,mxyu,mxyd,mxyl,mxyr)
+			elif mxy & WG_HALL != 0:
+				#HALL.generateInWorld(x,y,mxyu,mxyd,mxyl,mxyr)			
 
 # This is called by Pyxel every tick, and handles all game inputs
 def update():
