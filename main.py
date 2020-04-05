@@ -146,9 +146,8 @@ class Lazer():
                 texture8["player/beem_H{}".format(random.randrange(0,3))].draw(drawX + 0.5, drawY + 0.5, 0)
 
 class Wall(Entity):
-    def __init__(self, name, x=WIDTH/2, y=HEIGHT/2, dir="N"):
+    def __init__(self, name, x, y):
         super(Wall, self).__init__(name, ["player/wall_{}.png".format(x) for x in range(0,12)], x, y)
-        self.dir = dir
         self.frameNum = 0 + random.randrange(0,12)
         self.randX = random.choice([True, False])
         self.randY = random.choice([True, False])
@@ -516,31 +515,31 @@ def setup():
     player = Player("player")
     entities.append(player)
 
-    st = StationaryTurret("turret", 5, 5, "N")
+    st = StationaryTurret("turret", -1, -1, "N")
     entities.append(st)
 
-    st = StationaryTurret("turret", 6, 6, "S")
+    st = StationaryTurret("turret", 16, 16, "S")
     entities.append(st)
 
-    st = StationaryTurret("turret", 8, 3, "W")
+    st = StationaryTurret("turret", -1, 16, "W")
     entities.append(st)
 
-    st = StationaryTurret("turret", 8, 2, "E")
+    st = StationaryTurret("turret", 16, -1, "E")
     entities.append(st)
 
     mt = MovingTurret("turret", 8, 8, "N")
     entities.append(mt)
 
-    wa = Wall("wall", -1, 11)
-    structures.append(wa)
-    wa = Wall("wall", -1, 12)
-    structures.append(wa)
-    wa = Wall("wall", -1, 13)
-    structures.append(wa)
-    wa = Wall("wall", -1, 14)
-    structures.append(wa)
-    wa = Wall("wall", -1, 15)
-    structures.append(wa)
+    #wa = Wall("wall", -1, 11)
+    #structures.append(wa)
+    #wa = Wall("wall", -1, 12)
+    #structures.append(wa)
+    #wa = Wall("wall", -1, 13)
+    #structures.append(wa)
+    #wa = Wall("wall", -1, 14)
+    #structures.append(wa)
+    #wa = Wall("wall", -1, 15)
+    #structures.append(wa)
 
 
     # Invalid texture test code
@@ -552,7 +551,7 @@ def mapObjType(type, ct, cb, cl, cr):
         return Wall
     if type == "F":
         return Floor
-    if "C" in type:
+    if type[0] == "C":
         if "U" in type and ct:
             if "W" in type:
                 return Wall
@@ -574,7 +573,7 @@ def mapObjType(type, ct, cb, cl, cr):
             if "F" in type:
                 return Floor
         return None
-    if "O" in type:
+    if type[0] == "O":
         if "U" in type and ct:
             return Floor
         if "D" in type and cl:
@@ -587,7 +586,6 @@ def mapObjType(type, ct, cb, cl, cr):
     return None
 
 def parseRoomCSV(csvFile, ct, cb, cl, cr):
-    print(ct, cb, cl, cr)
     f = open(csvFile)
     dat = f.read()
     f.close()
@@ -616,121 +614,40 @@ class RoomTile():
 class Room(RoomTile):
     def generateInWorld(self, x, y):
         roomData = parseRoomCSV("room.csv",self.ct,self.cb,self.cl,self.cr)
-        for lx in range(0,15):
-            tileList = roomData.pop(0)
-            for ly in range(0,15):
-                tile = tileList.pop(0)
-                if tile != None:
-                    if tile == Floor:
-                        tileObj = tile("", 15*x+lx,15*y+ly)
-                    else:
-                        tileObj = tile(15*x+lx,15*y+ly)
+        for xL in range(0,15):
+            for yL in range(0,15):
+                tile = roomData[xL][yL]
+                if (tile == Floor):
+                    tileObj = tile(name="floor", x=xL+x*15, y=yL+y*15)
+                    structures.append(tileObj)
+                elif (tile == Wall):
+                    tileObj = tile(name="wall", x=xL+x*15, y=yL+y*15)
                     structures.append(tileObj)
 
 # Generates a thin hallway between two or more rooms
 class Hallway(RoomTile):
     def generateInWorld(self, x, y):
         roomData = parseRoomCSV("hall.csv",self.ct,self.cb,self.cl,self.cr)
-        for lx in range(0,15):
-            tileList = roomData.pop(0)
-            for ly in range(0,15):
-                tile = tileList.pop(0)
-                if tile != None:
-                    if tile == Floor:
-                        tileObj = tile("", 15*x+lx,15*y+ly)
-                    else:
-                        tileObj = tile(15*x+lx,15*y+ly)
+
+        for xL in range(0,15):
+            for yL in range(0,15):
+                tile = roomData[xL][yL]
+                if (tile == Floor):
+                    tileObj = tile(name="floor", x=xL+x*15, y=yL+y*15)
+                    structures.append(tileObj)
+                elif (tile == Wall):
+                    tileObj = tile(name="wall", x=xL+x*15, y=yL+y*15)
                     structures.append(tileObj)
 
 # Generate the world! You can use this to generate levels or whatever
-def worldgen(roomSetup):
-    rooms = roomSetup
-    #rooms += [item for sublist in [[x[0] for y in range(x[1])] for x in roomSetup] for item in sublist]
-    map = []
-    roommap = []
-    for x in range(0,15):
-        map.append([])
-        roommap.append([])
-        for y in range(0,9):
-            map[x].append(0)
-            roommap[x].append(None)
-    x = 1
-    y = 1
-    while len(rooms) > 1:
-        map[x][y] = 1
-        roommap[x][y] = rooms.pop(random.randrange(0,len(rooms)))
-        n = random.randrange(1,5)
-        direction = 0
-        not_this_way = 0
-        while n > 0:
-            while direction == not_this_way:
-                direction = random.randrange(1,4)
-            if direction == 1: # Left
-                if x > 0:
-                    not_this_way = 3
-                    x = x - 1
-                else:
-                    not_this_way = 1
-                    x = x + 1
-                if map[x][y] == 0:
-                    map[x][y] = 2
-            elif direction == 2: # Up
-                if y > 0:
-                    not_this_way = 4
-                    y = y - 1
-                else:
-                    not_this_way = 2
-                    y = y + 1
-                if map[x][y] == 0:
-                    map[x][y] = 2
-            elif direction == 3: # Right
-                if x < 14:
-                    not_this_way = 1
-                    x = x + 1
-                else:
-                    not_this_way = 3
-                    x = x - 1
-                if map[x][y] == 0:
-                    map[x][y] = 2
-            elif direction == 4: # Down
-                if y < 8:
-                    not_this_way = 2
-                    y = y + 1
-                else:
-                    not_this_way = 4
-                    y = y - 1
-                if map[x][y] == 0:
-                    map[x][y] = 2
-            if roommap[x][y] == None or n > 1:
-                n = n - 1
-    map[x][y] = 1
-    roommap[x][y] = rooms.pop(random.randrange(0,len(rooms)))
-    for x in range(0,15):
-        for y in range(0,9):
-            mxy = map[x][y]
-            if mxy == 0:
-                continue
-            mxyl = False
-            mxyu = False
-            mxyd = False
-            mxyr = False
-            if y > 0:
-                if map[x][y-1] != 0:
-                    mxyu = True
-            if y < 8:
-                if map[x][y+1] != 0:
-                    mxyd = True
-            if x > 0:
-                if map[x-1][y] != 0:
-                    mxyl = True
-            if x < 14:
-                if map[x+1][y] != 0:
-                    mxyr = True
-            if mxy == 1:
-                roomobj = Room(mxyu,mxyd,mxyl,mxyr)
-            elif mxy == 2:
-                roomobj = Hallway(mxyu,mxyd,mxyl,mxyr)
-            roomobj.generateInWorld(x,y)
+def worldgen():# roomSetup
+    h = Hallway(True, True, True, True)
+    h.generateInWorld(0, 0)
+    r = Room(True, True, True, True)
+    r.generateInWorld(0, 1)
+    r = Room(True, True, True, True)
+    r.generateInWorld(1, 0)
+
 
 # This is called by Pyxel every tick, and handles all game inputs
 def update():
@@ -772,7 +689,8 @@ def draw():
 # This is where the game setup logic is
 def run():
     setup()
-    worldgen([0,0,0,0,0,0,0,0,0,0,0,0])
+    worldgen()
+    #worldgen([0,0,0,0,0,0,0,0,0,0,0,0])
     pyxel.run(update, draw)
 
 # This is the entry point for our file.
