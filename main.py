@@ -3,7 +3,7 @@
 # Created by Jared Dunbar, April 4th, 2020
 # Use this as an example for a basic game.
 
-import pyxel, random
+import pyxel, random, math
 import os.path
 from os import path
 
@@ -15,17 +15,20 @@ HEIGHT = 12
 GL_WIDTH = 155
 GL_HEIGHT = 135
 
-# Entities (should not) be able to walk through structures,
-#   unless they have "allow" set to True
-structures = []
-
 # Window offsets for the panning feature.
 windowOffsetX = 0
 windowOffsetY = 0
 
+# Entities (should not) be able to walk through structures,
+#   unless they have "allow" set to True
+structures = []
+
 # Entities can move all over the place and stand in the same cube, but not walk
 #   into structures unless the structure has "allow" set to True
 entities = []
+
+# These contain all fireables and are cleared relatively often.
+lazers = []
 
 # Sound mappings
 sounds = {}
@@ -67,6 +70,7 @@ class Drawn():
             # Only register if we're not in the 8x8 texturemap
             if name not in texture8:
                 if not path.exists(texture):
+                    print("Could not find texture {}".format(texture))
                     texture = "invalid8.png"
                 # 8x8 is in bank 1
                 self.bank = 1
@@ -125,10 +129,55 @@ class Entity():
         if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
             texture16[self.texName[self.frameNum]].draw(drawX, drawY)
 
+class Lazer():
+    def __init__(self, owner, x, y, dir):
+        self.owner = owner
+        self.x = x
+        self.y = y
+        self.dir = dir
+
+    def draw(self):
+        drawX = (self.x + windowOffsetX)*2
+        drawY = (self.y + windowOffsetY)*2
+        if (drawX >= 0 and drawX < WIDTH*2) and (drawY >=0 and drawY < HEIGHT*2):
+            if (self.dir == "N" or self.dir == "S"):
+                texture8["player/beem_V{}".format(random.randrange(0,3))].draw(drawX + 0.5, drawY + 0.5, 0)
+            else:
+                texture8["player/beem_H{}".format(random.randrange(0,3))].draw(drawX + 0.5, drawY + 0.5, 0)
+
+class Wall(Entity):
+    def __init__(self, name, x=WIDTH/2, y=HEIGHT/2, dir="N"):
+        super(Wall, self).__init__(name, ["player/wall_{}.png".format(x) for x in range(0,12)], x, y)
+        self.dir = dir
+        self.frameNum = 0 + random.randrange(0,12)
+        self.randX = random.choice([True, False])
+        self.randY = random.choice([True, False])
+
+    def update(self):
+        pass
+
+    def draw(self):
+        drawX = self.x + windowOffsetX
+        drawY = self.y + windowOffsetY
+
+        if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
+            texture16[self.texName[int(self.frameNum)]].draw(drawX, drawY, 0, fX=self.randX, fY=self.randY)
+        self.frameNum += 0.5
+        if (self.frameNum >= 12):
+            self.frameNum = 0
+
 class Floor(Entity):
     def __init__(self, name, x, y):
-        super(Floor, self).__init__(name, ["floor.png"], x, y)
+        super(Floor, self).__init__(name, [random.choice(["player/ground.png"]*8 + ["player/ground_blip.png"])], x, y)
         self.allow = True
+        self.randX = random.choice([True, False])
+        self.randY = random.choice([True, False])
+
+    def draw(self):
+        drawX = self.x + windowOffsetX
+        drawY = self.y + windowOffsetY
+        if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
+            texture16[self.texName[self.frameNum]].draw(drawX, drawY, fX=self.randX, fY=self.randY)
 
 # The player class extends Entity by listening for keyboard events.
 class Player(Entity):
@@ -161,7 +210,6 @@ class Player(Entity):
             if (wantGoX != 0 or wantGoY != 0):
                 if canGo(self.x, self.y, wantGoX, wantGoY):
                     global windowOffsetX, windowOffsetY
-                #if canGo(self.x + wantGoX, self.y + wantGoY, self.x, self.y):
                     self.x = self.x + wantGoX
                     self.y = self.y + wantGoY
                     self.cooldown = self.cooldownTime
@@ -193,13 +241,232 @@ class Player(Entity):
             fY = True
             ch = self.texHnames
 
-        #print(ch)
-
         if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
             texture16[ch[self.frameNum - 1]].draw(drawX, drawY, 0, fX=fX, fY=fY)
         self.frameNum += 1
         if (self.frameNum >= 12):
             self.frameNum = 0
+
+class StationaryTurret(Entity):
+    def __init__(self, name, x=WIDTH/2, y=HEIGHT/2, dir="N"):
+        super(StationaryTurret, self).__init__(name, ["player/turret_H.png", "player/turret_V.png"], x, y)
+        self.texHnames = [x for x in self.texName if "H" in x]
+        self.texVnames = [x for x in self.texName if "V" in x]
+        self.dir = dir
+        self.charge = 0
+        self.chargeTexNames = []
+        self.HbeamNames = []
+        self.VbeamNames = []
+        self.owner = random.randrange(0,32000) # good enough
+
+        for tex in ["player/turret_charge_{}.png".format(x) for x in range(0,4)]:
+            texName = tex.rsplit(".",1)[0] # remove file extension
+            self.chargeTexNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_H{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.HbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_V{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.VbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+
+    def update(self):
+        charge = 0
+        for entity in entities:
+            #print(entity)
+            if isinstance(entity, Player):
+                #print("{} is player!".format(entity))
+                xdiff = math.pow(entity.x - self.x, 2)
+                ydiff = math.pow(entity.y - self.y, 2)
+                if xdiff + ydiff < 10:
+                    #print("ARMING {} {}".format(self.x, self.y))
+                    charge += 0.5
+        if (charge == 0):
+            if (self.charge > 0):
+                self.charge -= 1
+        else:
+            if self.charge < 3:
+                self.charge += 1
+        if (self.charge == 3):
+            sounds["bzzz"].play(2)
+            self.placeLazer(self.dir)
+
+    def placeLazer(self, direction="N"):
+        count = 0
+        if direction == "N" or direction == "S":
+            beamNames = self.HbeamNames
+            if direction == "N":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y - y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "N")
+                    lazers.append(lz)
+            if direction == "S":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y + y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "S")
+                    lazers.append(lz)
+
+        elif direction == "E" or direction == "W":
+            beamNames = self.VbeamNames
+            if direction == "E":
+                for x in range(0, WIDTH*4):
+                    xL = self.x - x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "E")
+                    lazers.append(lz)
+            if direction == "W":
+                for x in range(0, WIDTH*4):
+                    xL = self.x + x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "W")
+                    lazers.append(lz)
+
+    def draw(self):
+        drawX = self.x + windowOffsetX
+        drawY = self.y + windowOffsetY
+
+        fX = False
+        fY = False
+        ch = self.texHnames
+
+        if self.dir == "N":
+            fX = True
+            fY = True
+            ch = self.texVnames
+        if self.dir == "S":
+            fX = False
+            fY = False
+            ch = self.texVnames
+        if self.dir == "E":
+            fX = False
+            fY = False
+            ch = self.texHnames
+        if self.dir == "W":
+            fX = True
+            fY = True
+            ch = self.texHnames
+
+        if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
+            texture16[ch[0]].draw(drawX, drawY, 0, fX=fX, fY=fY)
+            texture8[self.chargeTexNames[int(self.charge)]].draw(drawX*2+0.5, drawY*2+0.5, 0)
+
+class MovingTurret(Entity):
+    def __init__(self, name, x=WIDTH/2, y=HEIGHT/2, dir="N"):
+        super(MovingTurret, self).__init__(name, ["player/turret_H{}.png".format(x) for x in range(0,12)] + ["player/turret_V{}.png".format(x) for x in range(0,12)], x, y)
+        self.cooldown = 0
+        self.cooldownTime = 2
+        self.frameNum = 1
+        self.texHnames = [x for x in self.texName if "H" in x]
+        self.texVnames = [x for x in self.texName if "V" in x]
+        self.dir = dir
+        self.charge = 0
+        self.chargeTexNames = []
+        self.HbeamNames = []
+        self.VbeamNames = []
+        self.owner = random.randrange(0,32000) # good enough
+
+        for tex in ["player/turret_charge_{}.png".format(x) for x in range(0,4)]:
+            texName = tex.rsplit(".",1)[0] # remove file extension
+            self.chargeTexNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_H{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.HbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+        for tex in ["player/beem_V{}.png".format(x) for x in range(0,3)]:
+            texName = tex.rsplit(".",1)[0]
+            self.VbeamNames.append(texName)
+            Drawn(texName, 8, tex)
+
+    def update(self):
+        charge = 0
+        for entity in entities:
+            #print(entity)
+            if isinstance(entity, Player):
+                #print("{} is player!".format(entity))
+                xdiff = math.pow(entity.x - self.x, 2)
+                ydiff = math.pow(entity.y - self.y, 2)
+                if xdiff + ydiff < 10:
+                    #print("ARMING {} {}".format(self.x, self.y))
+                    charge += 0.5
+        if (charge == 0):
+            if (self.charge > 0):
+                self.charge -= 1
+        else:
+            if self.charge < 3:
+                self.charge += 1
+        if (self.charge == 3):
+            sounds["bzzz"].play(2)
+            self.placeLazer(self.dir)
+
+    def placeLazer(self, direction="N"):
+        count = 0
+        if direction == "N" or direction == "S":
+            beamNames = self.HbeamNames
+            if direction == "N":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y - y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "N")
+                    lazers.append(lz)
+            if direction == "S":
+                for y in range(0, HEIGHT*4):
+                    yL = self.y + y/2
+                    lz = Lazer("{}{}".format(self.owner, y), self.x, yL, "S")
+                    lazers.append(lz)
+
+        elif direction == "E" or direction == "W":
+            beamNames = self.VbeamNames
+            if direction == "E":
+                for x in range(0, WIDTH*4):
+                    xL = self.x - x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "E")
+                    lazers.append(lz)
+            if direction == "W":
+                for x in range(0, WIDTH*4):
+                    xL = self.x + x/2
+                    lz = Lazer("{}{}".format(self.owner, x), xL, self.y, "W")
+                    lazers.append(lz)
+
+    def draw(self):
+        drawX = self.x + windowOffsetX
+        drawY = self.y + windowOffsetY
+
+        fX = False
+        fY = False
+        ch = self.texHnames
+
+        if self.dir == "N":
+            fX = True
+            fY = True
+            ch = self.texVnames
+        if self.dir == "S":
+            fX = False
+            fY = False
+            ch = self.texVnames
+        if self.dir == "E":
+            fX = False
+            fY = False
+            ch = self.texHnames
+        if self.dir == "W":
+            fX = True
+            fY = True
+            ch = self.texHnames
+
+        if (drawX >= 0 and drawX < WIDTH) and (drawY >=0 and drawY < HEIGHT):
+            texture16[ch[self.frameNum - 1]].draw(drawX, drawY, 0, fX=fX, fY=fY)
+            texture8[self.chargeTexNames[self.charge]].draw(drawX*2+0.5, drawY*2+0.5, 0)
+        self.frameNum += 1
+        if (self.frameNum >= 12):
+            self.frameNum = 0
+        if (self.frameNum == 3):
+            if self.dir == "N":
+                self.dir = "E"
+            elif self.dir == "E":
+                self.dir = "S"
+            elif self.dir == "S":
+                self.dir = "W"
+            elif self.dir == "W":
+                self.dir = "N"
 
 # This tells you if an entity is permitted to go somewhere.
 # From x,y with velocity a,b
@@ -243,10 +510,38 @@ def setup():
     # Register sounds
     Sounded("collide", "c2c1", speed=4)
     Sounded("level", "c3e3g3c4c4")
+    Sounded("bzzz", "c1c1c1c1c1c1c1", tone="t", speed=9)
 
     # Register our player
     player = Player("player")
     entities.append(player)
+
+    st = StationaryTurret("turret", 5, 5, "N")
+    entities.append(st)
+
+    st = StationaryTurret("turret", 6, 6, "S")
+    entities.append(st)
+
+    st = StationaryTurret("turret", 8, 3, "W")
+    entities.append(st)
+
+    st = StationaryTurret("turret", 8, 2, "E")
+    entities.append(st)
+
+    mt = MovingTurret("turret", 8, 8, "N")
+    entities.append(mt)
+
+    wa = Wall("wall", -1, 11)
+    structures.append(wa)
+    wa = Wall("wall", -1, 12)
+    structures.append(wa)
+    wa = Wall("wall", -1, 13)
+    structures.append(wa)
+    wa = Wall("wall", -1, 14)
+    structures.append(wa)
+    wa = Wall("wall", -1, 15)
+    structures.append(wa)
+
 
     # Invalid texture test code
     #random = Entity("random", "random.png")
@@ -389,8 +684,6 @@ def worldgen(roomSetup):
 
 # This is called by Pyxel every tick, and handles all game inputs
 def update():
-    # Clear the screen
-    pyxel.cls(col=0)
 
     # Quit if Q
     if pyxel.btn(pyxel.KEY_Q):
@@ -406,6 +699,9 @@ def update():
     # for x in [x for x in entities if x is Player]
     # for x in [x for x in entities if x is not Player]
 
+    # Clear all lazers
+    lazers.clear()
+
     for x in structures:
         x.update()
     for x in entities:
@@ -414,7 +710,11 @@ def update():
 # This is called by Pyxel every time the screen needs a redraw, which can be
 #   more than once per tick, but really depends on the FPS?
 def draw():
+    # Clear the screen
+    pyxel.cls(col=3)
     for x in structures:
+        x.draw()
+    for x in lazers:
         x.draw()
     for x in entities:
         x.draw()
