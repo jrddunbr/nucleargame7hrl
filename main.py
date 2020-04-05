@@ -12,8 +12,8 @@ WIDTH = 16
 HEIGHT = 12
 
 # Width and height of the game level
-GL_WIDTH = 32
-GL_HEIGHT = 32
+GL_WIDTH = 155
+GL_HEIGHT = 135
 
 # Entities (should not) be able to walk through structures,
 #   unless they have "allow" set to True
@@ -201,28 +201,70 @@ def setup():
     #entities.append(random)
 
 # Generate the world! You can use this to generate levels or whatever
-def worldgen():
-    # Insert the walls and such
-    for a in range(0, 64):
-        x = random.randrange(0, GL_WIDTH - 1)
-        y = random.randrange(0, GL_HEIGHT - 1)
-        wall = Entity("wall", "wall.png", x, y)
-        structures.append(wall)
-
-    # last step: Make the floor. NOTE: This alg is terrible and is O(n^3) at worst.
-    floorList = []
-    for x in range(0, GL_WIDTH):
-        for y in range(0, GL_HEIGHT):
-            hasItem = False
-            for s in structures:
-                if (s.x == x and s.y == y):
-                    hasItem = True
-            if not hasItem:
-                floor = Floor("floor", x, y)
-                floorList.append(floor)
-    # Insert the floor.
-    for a in floorList:
-        structures.append(a)
+WG_EMPTY = 0
+WG_VERTHALL = 1
+WG_HORIZHALL = 2
+WG_ROOM = 4
+def worldgen(rooms):
+	map = []
+	roommap = []
+	for x in range(0,15):
+		map[x] = []
+		roommap[x] = []
+		for y in range(0,9):
+			map[x][y] = WG_EMPTY;		
+	x = random.randrange(0, 15)
+	y = random.randrange(0, 9)
+    while rooms.count() > 0:
+		map[x][y] = WG_ROOM
+		roommap[x][y] = rooms.pop(random.randrange(0,rooms.count()))
+		n = rand(1,randrange(4,6))
+		direction = 0
+		not_this_way = 0
+		while n > 0:
+			while direction == not_this_way:
+				direction = randrange(1,4)
+			if direction == 1: # Left
+				if x > 0:
+					not_this_way = 3
+					x = x - 1
+				else:
+					not_this_way = 1
+					x = x + 1
+				if map[x][y] & WG_VERTHALL == 0:
+					map[x][y] = map[x][y] + WG_HORIZHALL
+			elif direction == 2: # Up
+				if y > 0:
+					not_this_way = 4
+					y = y - 1
+				else:
+					not_this_way = 2
+					y = y + 1
+				if map[x][y] & WG_VERTHALL == 0:
+					map[x][y] = map[x][y] + WG_VERTHALL
+			elif direction == 3: # Right
+				if x < 14:
+					not_this_way = 1
+					x = x + 1
+				else:
+					not_this_way = 3
+					x = x - 1
+				if map[x][y] & WG_HORIZHALL == 0:
+					map[x][y] = map[x][y] + WG_HORIZHALL	
+			elif direction == 4: # Down
+				if y < 8:
+					not_this_way = 2
+					y = y + 1
+				else:
+					not_this_way = 4
+					y = y - 1
+				if map[x][y] & WG_VERTHALL == 0:
+					map[x][y] = map[x][y] + WG_VERTHALL	
+			if roommap[x][y] != None || n > 1:
+				n = n - 1
+	for x in range(0,15):
+		for y in range(0,9):
+			
 
 # This is called by Pyxel every tick, and handles all game inputs
 def update():
